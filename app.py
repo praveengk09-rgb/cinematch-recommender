@@ -1,4 +1,4 @@
-"""Streamlit UI. Run: streamlit run app.py"""
+"""Streamlit UI for CineMatch. Run using: streamlit run app.py"""
 import json
 import re
 import urllib.parse
@@ -12,7 +12,7 @@ import serving
 
 st.set_page_config(page_title="CineMatch | ALS Recommender", page_icon="🎬", layout="wide")
 
-# Custom CSS
+# Custom Styling
 st.markdown("""
 <style>
 .hero {
@@ -50,7 +50,7 @@ except FileNotFoundError:
     st.stop()
 
 
-# Helper: Extract Year & Title
+# Helper: Extract Clean Title & Year
 def extract_year(title: str) -> tuple[str, int | None]:
     match = re.search(r'\((\d{4})\)', title)
     year = int(match.group(1)) if match else None
@@ -58,13 +58,13 @@ def extract_year(title: str) -> tuple[str, int | None]:
     return clean_title, year
 
 
-# Poster Fetcher via OMDb API with TMDB fallback
+# Multi-Source Poster Fetcher (OMDb -> TMDB -> Styled SVG)
 @st.cache_data(show_spinner=False)
 def fetch_poster_url(movie_title: str) -> str:
-    """Fetch movie poster using OMDb API."""
+    """Fetch movie poster using OMDb API with TMDB search fallback."""
     clean_title, year = extract_year(movie_title)
     
-    # Primary attempt: OMDb API
+    # Strategy 1: OMDb API
     omdb_url = f"https://www.omdbapi.com/?t={urllib.parse.quote(clean_title)}&apikey=trilogy"
     if year:
         omdb_url += f"&y={year}"
@@ -79,21 +79,22 @@ def fetch_poster_url(movie_title: str) -> str:
     except Exception:
         pass
 
-    # Secondary attempt: TMDB Search API
-    tmdb_url = f"https://api.themoviedb.org/3/search/movie?api_key=15d2ea6d0dc1d476efbca3eba1e9bbfb&query={urllib.parse.quote(clean_title)}"
+    # Strategy 2: TMDB API Direct Search
+    tmdb_key = "15d2ea6d0dc1d476efbca3eba1e9bbfb"
+    tmdb_url = f"https://api.themoviedb.org/3/search/movie?api_key={tmdb_key}&query={urllib.parse.quote(clean_title)}"
     if year:
         tmdb_url += f"&year={year}"
 
     try:
         res = requests.get(tmdb_url, timeout=3)
         if res.status_code == 200:
-            data = res.json()
-            if data.get("results") and data["results"][0].get("poster_path"):
-                return f"https://image.tmdb.org/t/p/w500{data['results'][0]['poster_path']}"
+            results = res.json().get("results", [])
+            if results and results[0].get("poster_path"):
+                return f"https://image.tmdb.org/t/p/w500{results[0]['poster_path']}"
     except Exception:
         pass
 
-    # Clean fallback image card
+    # Strategy 3: Styled SVG Card Placeholder
     text_encoded = urllib.parse.quote(clean_title[:25])
     return f"https://placehold.co/500x750/1f2a44/FFFFFF/png?text={text_encoded}"
 
@@ -102,7 +103,7 @@ def fetch_poster_url(movie_title: str) -> str:
 RATING_COL = st.column_config.ProgressColumn("Predicted ⭐", min_value=0.5, max_value=5.0, format="%.2f")
 SIM_COL = st.column_config.ProgressColumn("Cosine similarity", min_value=0.0, max_value=1.0, format="%.3f")
 
-# Find the underlying dataframe safely across possible engine attributes
+# Access underlying movie dataframe across engine dynamic attributes
 movies_data = None
 for attr in ['movies_df', 'df', 'items_df']:
     if hasattr(eng, attr):
@@ -112,7 +113,7 @@ for attr in ['movies_df', 'df', 'items_df']:
         movies_data = getattr(eng.space, attr)
         break
 
-# Sidebar Controls & Filters
+# Sidebar Controls & Filtering Options
 with st.sidebar:
     st.header("About")
     st.write(f"**{len(eng.user_ids):,}** users · **{len(eng.space.ids):,}** movies · "
@@ -146,7 +147,7 @@ with st.sidebar:
     view_mode = st.radio("Display Mode", options=["Poster Grid", "Data Table"], index=0)
 
 
-# Main Tabs
+# Main Interface Tabs
 tab_rec, tab_sim, tab_perf = st.tabs(["🎯 For a user", "🧬 Similar movies", "📈 Model performance"])
 
 with tab_rec:
