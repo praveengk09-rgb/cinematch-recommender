@@ -1,0 +1,33 @@
+{
+  "global_mean_rmse": 1.0504,
+  "als_baseline_rmse": 0.8807,
+  "als_tuned_rmse": 0.8807,
+  "best_params": {
+    "rank": 10,
+    "regParam": 0.05
+  },
+  "cv_results": [
+    {
+      "rank": 10,
+      "regParam": 0.05,
+      "cv_rmse": 0.9322
+    },
+    {
+      "rank": 10,
+      "regParam": 0.1,
+      "cv_rmse": 0.9322
+    },
+    {
+      "rank": 15,
+      "regParam": 0.05,
+      "cv_rmse": 0.9322
+    },
+    {
+      "rank": 15,
+      "regParam": 0.1,
+      "cv_rmse": 0.9322
+    }
+  ],
+  "n_train": 80578,
+  "n_test": 20258
+}
