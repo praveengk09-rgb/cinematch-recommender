@@ -91,12 +91,13 @@ with st.sidebar:
     st.divider()
     st.header("🔍 Filter Options")
 
-    # Extract genres dynamically from movies dataset
+    # Extract unique genres from eng.space.df
     all_genres = set()
-    for g_str in eng.movies_df['genres'].dropna():
-        for g in g_str.split('|'):
-            if g != '(no genres listed)':
-                all_genres.add(g)
+    if 'genres' in eng.space.df.columns:
+        for g_str in eng.space.df['genres'].dropna():
+            for g in str(g_str).split('|'):
+                if g != '(no genres listed)':
+                    all_genres.add(g)
 
     selected_genres = st.multiselect(
         "Filter by Genre",
@@ -131,10 +132,10 @@ with tab_rec:
             recs['year'] = recs['title'].apply(extract_year)
             recs = recs[(recs['year'] >= year_range[0]) & (recs['year'] <= year_range[1])]
 
-            # Apply Genre Filter
-            if selected_genres:
+            # Apply Genre Filter if selected and genres column exists
+            if selected_genres and 'genres' in recs.columns:
                 def genre_match(genres_str):
-                    movie_g = set(genres_str.split('|'))
+                    movie_g = set(str(genres_str).split('|'))
                     return any(g in movie_g for g in selected_genres)
                 recs = recs[recs['genres'].apply(genre_match)]
 
@@ -154,9 +155,13 @@ with tab_rec:
                                 st.image(poster_url, use_container_width=True)
                                 st.markdown(f"**{row['title']}**")
                                 st.caption(f"⭐ **Predicted:** {row['predicted_rating']:.2f} / 5.0")
-                                st.caption(f"🏷️ {row['genres'].replace('|', ', ')}")
+                                if 'genres' in row:
+                                    st.caption(f"🏷️ {str(row['genres']).replace('|', ', ')}")
                     else:
-                        st.dataframe(filtered_recs[["movieId", "title", "genres", "predicted_rating"]],
+                        cols_to_show = ["movieId", "title", "predicted_rating"]
+                        if 'genres' in filtered_recs.columns:
+                            cols_to_show.insert(2, "genres")
+                        st.dataframe(filtered_recs[cols_to_show],
                                      hide_index=True, use_container_width=True,
                                      column_config={"predicted_rating": RATING_COL})
 
@@ -185,7 +190,8 @@ with tab_sim:
                         st.image(poster_url, use_container_width=True)
                         st.markdown(f"**{row['title']}**")
                         st.caption(f"🎯 **Similarity:** {row['similarity']:.1%}")
-                        st.caption(f"🏷️ {row['genres'].replace('|', ', ')}")
+                        if 'genres' in row:
+                            st.caption(f"🏷️️ {str(row['genres']).replace('|', ', ')}")
             else:
                 st.dataframe(sims, hide_index=True, use_container_width=True,
                              column_config={"similarity": SIM_COL})
