@@ -111,16 +111,6 @@ def fetch_poster_url(movie_title: str) -> str:
 RATING_COL = st.column_config.ProgressColumn("Predicted ⭐", min_value=0.5, max_value=5.0, format="%.2f")
 SIM_COL = st.column_config.ProgressColumn("Cosine similarity", min_value=0.0, max_value=1.0, format="%.3f")
 
-# Access underlying movie dataframe across engine dynamic attributes
-movies_data = None
-for attr in ['movies_df', 'df', 'items_df']:
-    if hasattr(eng, attr):
-        movies_data = getattr(eng, attr)
-        break
-    elif hasattr(eng, 'space') and hasattr(eng.space, attr):
-        movies_data = getattr(eng.space, attr)
-        break
-
 # Sidebar Controls & Filtering Options
 with st.sidebar:
     st.header("About")
@@ -131,13 +121,18 @@ with st.sidebar:
     st.divider()
     st.header("🔍 Filter Options")
 
-    # Extract unique genres safely
+    # Extract unique genres from eng.space dataframe
     all_genres = set()
-    if movies_data is not None and 'genres' in movies_data.columns:
-        for g_str in movies_data['genres'].dropna():
+    movies_df = getattr(eng.space, 'df', getattr(eng.space, 'movies_df', None))
+    if movies_df is None:
+        movies_df = getattr(eng, 'movies_df', getattr(eng, 'df', None))
+
+    if movies_df is not None and 'genres' in movies_df.columns:
+        for g_str in movies_df['genres'].dropna():
             for g in str(g_str).split('|'):
-                if g != '(no genres listed)':
-                    all_genres.add(g)
+                g_clean = g.strip()
+                if g_clean and g_clean != '(no genres listed)':
+                    all_genres.add(g_clean)
 
     selected_genres = st.multiselect(
         "Filter by Genre",
@@ -165,7 +160,7 @@ with tab_rec:
     
     if st.button("Recommend", type="primary", key="rec"):
         try:
-            recs = eng.recommend_top_n_for_user(int(uid), 100)
+            recs = eng.recommend_top_n_for_user(int(uid), 200)
 
             # Apply Release Year Filter
             recs['year'] = recs['title'].apply(lambda x: extract_year(x)[1] or 2000)
