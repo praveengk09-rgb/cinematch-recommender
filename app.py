@@ -2,8 +2,8 @@
 import json
 import re
 import urllib.parse
-import urllib.request
 import pandas as pd
+import requests
 import streamlit as st
 
 import config
@@ -50,42 +50,48 @@ except FileNotFoundError:
     st.stop()
 
 
-# Helper: Fetch Poster URL via TMDB API with clean title handling
+# Helper: Extract Year from Movie Title
+def extract_year(title: str) -> tuple[str, int | None]:
+    match = re.search(r'\((\d{4})\)', title)
+    year = int(match.group(1)) if match else None
+    clean_title = re.sub(r'\s*\([^)]*\)', '', title).strip()
+    return clean_title, year
+
+
+# Robust TMDB Poster Fetcher
 @st.cache_data(show_spinner=False)
 def fetch_poster_url(movie_title: str) -> str:
-    """Fetch movie poster URL using TMDB search API."""
-    # Remove year and all parenthetical notes (e.g. " (Yeopgijeogin geunyeo) (2001)" -> "My Sassy Girl")
-    clean_title = re.sub(r'\s*\([^)]*\)', '', movie_title).strip()
-    if not clean_title:
-        clean_title = movie_title
-
-    api_key = "15d2ea6d0dc1d476efbca3eba1e9bbfb"
-    query = urllib.parse.quote(clean_title)
-    url = f"https://api.themoviedb.org/3/search/movie?api_key={api_key}&query={query}"
+    """Fetch real movie poster from TMDB API with browser-like headers."""
+    clean_title, year = extract_year(movie_title)
     
+    api_key = "15d2ea6d0dc1d476efbca3eba1e9bbfb"
+    params = {
+        "api_key": api_key,
+        "query": clean_title,
+    }
+    if year:
+        params["year"] = year
+
+    url = f"https://api.themoviedb.org/3/search/movie?{urllib.parse.urlencode(params)}"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "application/json"
+    }
+
     try:
-        req = urllib.request.Request(
-            url, 
-            headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
-        )
-        with urllib.request.urlopen(req, timeout=4) as response:
-            data = json.loads(response.read().decode('utf-8'))
-            if data.get('results'):
-                for res in data['results']:
-                    if res.get('poster_path'):
-                        return f"https://image.tmdb.org/t/p/w500{res['poster_path']}"
+        response = requests.get(url, headers=headers, timeout=3)
+        if response.status_code == 200:
+            data = response.json()
+            results = data.get("results", [])
+            for res in results:
+                if res.get("poster_path"):
+                    return f"https://image.tmdb.org/t/p/w500{res['poster_path']}"
     except Exception:
         pass
 
-    # Fallback styled SVG placeholder image
+    # Fallback to SVG placeholder
     text_encoded = urllib.parse.quote(clean_title[:25])
     return f"https://placehold.co/500x750/1f2a44/FFFFFF/png?text={text_encoded}"
-
-
-# Helper: Extract Year from Movie Title
-def extract_year(title: str) -> int:
-    match = re.search(r'\((\d{4})\)', title)
-    return int(match.group(1)) if match else 2000
 
 
 # Column configurations for table views
@@ -150,7 +156,7 @@ with tab_rec:
             recs = eng.recommend_top_n_for_user(int(uid), 100)
 
             # Apply Release Year Filter
-            recs['year'] = recs['title'].apply(extract_year)
+            recs['year'] = recs['title'].apply(lambda x: extract_year(x)[1] or 2000)
             recs = recs[(recs['year'] >= year_range[0]) & (recs['year'] <= year_range[1])]
 
             # Apply Genre Filter
