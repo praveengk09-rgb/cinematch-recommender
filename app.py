@@ -50,25 +50,36 @@ except FileNotFoundError:
     st.stop()
 
 
-# Helper: Fetch Poster URL via TMDB API
+# Helper: Fetch Poster URL via TMDB API with clean title handling
 @st.cache_data(show_spinner=False)
 def fetch_poster_url(movie_title: str) -> str:
     """Fetch movie poster URL using TMDB search API."""
-    clean_title = re.sub(r'\s*\(\d{4}\)', '', movie_title).strip()
-    api_key = "15d2ea6d0dc1d476efbca3eba1e9bbfb"  # Public demo key
+    # Remove year and all parenthetical notes (e.g. " (Yeopgijeogin geunyeo) (2001)" -> "My Sassy Girl")
+    clean_title = re.sub(r'\s*\([^)]*\)', '', movie_title).strip()
+    if not clean_title:
+        clean_title = movie_title
+
+    api_key = "15d2ea6d0dc1d476efbca3eba1e9bbfb"
     query = urllib.parse.quote(clean_title)
     url = f"https://api.themoviedb.org/3/search/movie?api_key={api_key}&query={query}"
     
     try:
-        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req, timeout=3) as response:
+        req = urllib.request.Request(
+            url, 
+            headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+        )
+        with urllib.request.urlopen(req, timeout=4) as response:
             data = json.loads(response.read().decode('utf-8'))
-            if data.get('results') and data['results'][0].get('poster_path'):
-                poster_path = data['results'][0]['poster_path']
-                return f"https://image.tmdb.org/t/p/w500{poster_path}"
+            if data.get('results'):
+                for res in data['results']:
+                    if res.get('poster_path'):
+                        return f"https://image.tmdb.org/t/p/w500{res['poster_path']}"
     except Exception:
         pass
-    return "https://via.placeholder.com/500x750.png?text=No+Poster+Available"
+
+    # Fallback styled SVG placeholder image
+    text_encoded = urllib.parse.quote(clean_title[:25])
+    return f"https://placehold.co/500x750/1f2a44/FFFFFF/png?text={text_encoded}"
 
 
 # Helper: Extract Year from Movie Title
