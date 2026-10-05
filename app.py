@@ -12,7 +12,7 @@ import serving
 
 st.set_page_config(page_title="CineMatch | ALS Recommender", page_icon="🎬", layout="wide")
 
-# Custom Styling
+# Custom Styling with Poster Uniformity CSS
 st.markdown("""
 <style>
 .hero {
@@ -28,6 +28,14 @@ div[data-testid="stMetric"] {
     background: rgba(127, 127, 127, .08);
     padding: .8rem 1rem;
     border-radius: 10px;
+}
+
+/* Fixed 2:3 Aspect Ratio for Poster Cards */
+div[data-testid="stImage"] > img {
+    aspect-ratio: 2 / 3 !important;
+    object-fit: cover !important;
+    border-radius: 8px !important;
+    width: 100% !important;
 }
 </style>
 <div class="hero">
