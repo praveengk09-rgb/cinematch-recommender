@@ -50,7 +50,7 @@ except FileNotFoundError:
     st.stop()
 
 
-# Helper: Extract Year from Movie Title
+# Helper: Extract Year & Title
 def extract_year(title: str) -> tuple[str, int | None]:
     match = re.search(r'\((\d{4})\)', title)
     year = int(match.group(1)) if match else None
@@ -58,38 +58,42 @@ def extract_year(title: str) -> tuple[str, int | None]:
     return clean_title, year
 
 
-# Robust TMDB Poster Fetcher
+# Poster Fetcher via OMDb API with TMDB fallback
 @st.cache_data(show_spinner=False)
 def fetch_poster_url(movie_title: str) -> str:
-    """Fetch real movie poster from TMDB API with browser-like headers."""
+    """Fetch movie poster using OMDb API."""
     clean_title, year = extract_year(movie_title)
     
-    api_key = "15d2ea6d0dc1d476efbca3eba1e9bbfb"
-    params = {
-        "api_key": api_key,
-        "query": clean_title,
-    }
+    # Primary attempt: OMDb API
+    omdb_url = f"https://www.omdbapi.com/?t={urllib.parse.quote(clean_title)}&apikey=trilogy"
     if year:
-        params["year"] = year
-
-    url = f"https://api.themoviedb.org/3/search/movie?{urllib.parse.urlencode(params)}"
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept": "application/json"
-    }
+        omdb_url += f"&y={year}"
 
     try:
-        response = requests.get(url, headers=headers, timeout=3)
-        if response.status_code == 200:
-            data = response.json()
-            results = data.get("results", [])
-            for res in results:
-                if res.get("poster_path"):
-                    return f"https://image.tmdb.org/t/p/w500{res['poster_path']}"
+        res = requests.get(omdb_url, timeout=3)
+        if res.status_code == 200:
+            data = res.json()
+            poster = data.get("Poster")
+            if poster and poster != "N/A":
+                return poster
     except Exception:
         pass
 
-    # Fallback to SVG placeholder
+    # Secondary attempt: TMDB Search API
+    tmdb_url = f"https://api.themoviedb.org/3/search/movie?api_key=15d2ea6d0dc1d476efbca3eba1e9bbfb&query={urllib.parse.quote(clean_title)}"
+    if year:
+        tmdb_url += f"&year={year}"
+
+    try:
+        res = requests.get(tmdb_url, timeout=3)
+        if res.status_code == 200:
+            data = res.json()
+            if data.get("results") and data["results"][0].get("poster_path"):
+                return f"https://image.tmdb.org/t/p/w500{data['results'][0]['poster_path']}"
+    except Exception:
+        pass
+
+    # Clean fallback image card
     text_encoded = urllib.parse.quote(clean_title[:25])
     return f"https://placehold.co/500x750/1f2a44/FFFFFF/png?text={text_encoded}"
 
@@ -152,7 +156,6 @@ with tab_rec:
     
     if st.button("Recommend", type="primary", key="rec"):
         try:
-            # Fetch candidate pool to allow genre and year filtering
             recs = eng.recommend_top_n_for_user(int(uid), 100)
 
             # Apply Release Year Filter
